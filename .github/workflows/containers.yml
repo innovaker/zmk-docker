@@ -93,9 +93,6 @@ jobs:
       max-parallel: 1 # takes advantage of caching between jobs
       matrix: 
         architecture: ${{ fromJSON(needs.architectures.outputs.json) }}
-        target: # ordered from biggest to smallest to take advantage of the registry cache
-          - dev
-          - build
         include:
           - architecture: arm
             board: nice_nano
@@ -116,37 +113,89 @@ jobs:
           registry: ghcr.io
           username: ${{ secrets.GHCR_USERNAME }}
           password: ${{ secrets.GHCR_TOKEN }}
-      - name: Define repository
-        id: repository
+      - name: Define build-args
+        id: build-args
         shell: bash
-        run: echo ::set-output name=name::zmk-${{ matrix.target }}-${{ matrix.architecture }}
-      - name: Define branch name
-        id: branch
-        run: echo ::set-output name=name::${GITHUB_REF#refs/heads/}
+        run: |
+          LIST="
+            ZEPHYR_VERSION=${{ env.zephyr-version }}
+            ARCHITECTURE=${{ matrix.architecture }}
+            ZEPHYR_SDK_VERSION=${{ env.zephyr-sdk-version }}
+          "
+          LIST="${LIST//'%'/'%25'}"
+          LIST="${LIST//$'\n'/'%0A'}"
+          LIST="${LIST//$'\r'/'%0D'}"
+          echo ::set-output name=list::${LIST}
+      - name: Define labels
+        id: labels
+        shell: bash
+        run: |
+          LIST="
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          "
+          LIST="${LIST//'%'/'%25'}"
+          LIST="${LIST//$'\n'/'%0A'}"
+          LIST="${LIST//$'\r'/'%0D'}"
+          echo ::set-output name=list::${LIST}
+      - name: Define endpoints
+        id: endpoints
+        env:
+          NS: ${{ needs.namespaces.outputs.docker-hub }}
+          CANDIDATE: ${{ needs.tags.outputs.candidate }}
+          LATEST: ${{ needs.tags.outputs.latest }}
+          CACHE_REPOSITORY: ${{ env.cache-repository-name }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+        shell: bash
+        run: |
+          BRANCH=${GITHUB_REF#refs/heads/}
+          
+          echo ::set-output name=local-build::/tmp/.buildx/build
+          echo ::set-output name=local-dev::/tmp/.buildx/dev
+          echo ::set-output name=registry-build-candidate::docker.io/${NS}/zmk-build-${ARCHITECTURE}:${CANDIDATE}
+          echo ::set-output name=registry-build-branch::docker.io/${NS}/zmk-build-${ARCHITECTURE}:${BRANCH}
+          echo ::set-output name=registry-dev-candidate::docker.io/${NS}/zmk-dev-${ARCHITECTURE}:${CANDIDATE}
+          echo ::set-output name=registry-dev-branch::docker.io/${NS}/zmk-dev-${ARCHITECTURE}:${BRANCH}
+          echo ::set-output name=registry-cache::docker.io/${NS}/${CACHE_REPOSITORY}:${BRANCH}-${ARCHITECTURE}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      - name: Build and load candidate image
-        id: build-push
+      - name: Build and load 'dev' candidate image
         uses: docker/build-push-action@v2
         with:
-          target: ${{ matrix.target }}
+          target: build
           build-args: |
-            ZEPHYR_VERSION=${{ env.zephyr-version }}
-            ARCHITECTURE=${{ matrix.architecture }}
-            ZEPHYR_SDK_VERSION=${{ env.zephyr-sdk-version }}
+            ${{ steps.build-args.outputs.list }}
           labels: |
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.revision=${{ github.sha }}
+            ${{ steps.labels.outputs.list }}
           tags: |
-            docker.io/${{ needs.namespaces.outputs.docker-hub }}/${{ steps.repository.outputs.name }}:${{ needs.tags.outputs.candidate }}
-          cache-from: type=registry,ref=docker.io/${{ needs.namespaces.outputs.docker-hub }}/${{ env.cache-repository-name }}:${{ steps.branch.outputs.name }}-${{ matrix.architecture }}
-          cache-to: ${{ (steps.docker-hub-login.outcome == 'success') && (matrix.target == 'dev') && format('type=registry,ref=docker.io/{0}/{1}:{2}-{3},mode=max', needs.namespaces.outputs.docker-hub, env.cache-repository-name, steps.branch.outputs.name, matrix.architecture) || null }}
+            ${{ steps.endpoints.outputs.registry-build-candidate }}
+            ${{ steps.endpoints.outputs.registry-build-branch }}
+          cache-from: |
+             ${{ steps.endpoints.outputs.registry-build-branch }}
+             ${{ steps.endpoints.outputs.registry-dev-branch }}
+          cache-to: type=inline
+          load: true
+      - name: Build 'dev' and push to registry
+        uses: docker/build-push-action@v2
+        with:
+          target: dev
+          build-args: |
+            ${{ steps.build-args.outputs.list }}
+          labels: |
+            ${{ steps.labels.outputs.list }}
+          tags: |
+            ${{ steps.endpoints.outputs.registry-dev-candidate }}
+            ${{ steps.endpoints.outputs.registry-dev-branch }}
+          cache-from: |
+            ${{ steps.endpoints.outputs.registry-build-candidate }}
+            ${{ steps.endpoints.outputs.registry-dev-branch }}
+          cache-to: type=inline
           load: true
       - name: Create and run container from candidate image
         shell: bash
-        run: docker run -d -it --name candidate ${{ env.docker-args }} docker.io/${{ needs.namespaces.outputs.docker-hub }}/${{ steps.repository.outputs.name }}:${{ needs.tags.outputs.candidate }}
+        run: docker run -d -it --name candidate ${{ env.docker-args }} ${{ steps.endpoints.outputs.registry-dev-candidate }}
       - name: Checkout ZMK
         uses: actions/checkout@v2
         with:
@@ -178,51 +227,41 @@ jobs:
       #- name: Test west test
       #  run: west test
       - name: Test clang-format
-        if: ${{ matrix.target == 'dev' }}
         run: clang-format --version
       - name: Test node
-        if: ${{ matrix.target == 'dev' }}
         run: node --version
       - name: Test docs ci
-        if: ${{ matrix.target == 'dev' }}
         run: cd docs && npm ci
       - name: Test docs lint
-        if: ${{ matrix.target == 'dev' }}
         run: cd docs && npm run lint
       - name: Test docs prettier check
-        if: ${{ matrix.target == 'dev' }}
         run: cd docs && npm run prettier:check
       - name: Test docs start (webpack-dev-server)
-        if: ${{ matrix.target == 'dev' }}
         run: cd docs && timeout -s SIGINT 20 npm run start &
       - run: sleep 15
-        if: ${{ matrix.target == 'dev' }}
       - name: Test docs wget (webpack-dev-server)
-        if: ${{ matrix.target == 'dev' }}
         run: wget http://localhost:3000
       - run: sleep 10
-        if: ${{ matrix.target == 'dev' }}
       - name: Test docs build (webpack)
-        if: ${{ matrix.target == 'dev' }}
         run: cd docs && npm run build
       - name: Test docs serve (webpack)
-        if: ${{ matrix.target == 'dev' }}
         run: cd docs && timeout -s SIGINT 10 npm run serve &
       - run: sleep 5
-        if: ${{ matrix.target == 'dev' }}
       - name: Test docs wget (webpack)
-        if: ${{ matrix.target == 'dev' }}
         run: wget http://localhost:3000
       - name: Test ssh
-        if: ${{ matrix.target == 'dev' }}
         run: ssh -V
       - name: Stop container
         shell: bash
         run: docker stop candidate
-      - name: Push candidate image to registry
+      - name: Push images to registry
         if: ${{ steps.docker-hub-login.outcome == 'success' }}
         shell: bash
-        run: docker image push docker.io/${{ needs.namespaces.outputs.docker-hub }}/${{ steps.repository.outputs.name }}:${{ needs.tags.outputs.candidate }}
+        run: |
+          docker image push ${{ steps.endpoints.outputs.registry-dev-candidate }}
+          docker image push ${{ steps.endpoints.outputs.registry-dev-branch }}
+          docker image push ${{ steps.endpoints.outputs.registry-build-candidate }}
+          docker image push ${{ steps.endpoints.outputs.registry-build-branch }}
   release-trigger:
     if: ${{ startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
