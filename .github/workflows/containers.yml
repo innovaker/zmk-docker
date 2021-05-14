@@ -120,6 +120,10 @@ jobs:
         id: repository
         shell: bash
         run: echo ::set-output name=name::zmk-${{ matrix.target }}-${{ matrix.architecture }}
+      - name: Define branch name
+        id: branch
+        shell: bash
+        run: echo ::set-output name=name::${GITHUB_REF#refs/heads/}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -138,8 +142,8 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           tags: |
             docker.io/${{ needs.namespaces.outputs.docker-hub }}/${{ steps.repository.outputs.name }}:${{ needs.tags.outputs.candidate }}
-          cache-from: type=registry,ref=docker.io/${{ needs.namespaces.outputs.docker-hub }}/${{ env.cache-repository-name }}:dev
-          cache-to: ${{ (steps.docker-hub-login.outcome == 'success') && (matrix.target == 'dev') && format('type=registry,ref=docker.io/{0}/{1}:{2},mode=max', needs.namespaces.outputs.docker-hub, env.cache-repository-name, 'dev') || null }}
+          cache-from: type=registry,ref=docker.io/${{ needs.namespaces.outputs.docker-hub }}/${{ env.cache-repository-name }}:${{ steps.branch.outputs.name }}-dev
+          cache-to: ${{ (steps.docker-hub-login.outcome == 'success') && (matrix.target == 'dev') && format('type=registry,ref=docker.io/{0}/{1}:{2}-{3},mode=max', needs.namespaces.outputs.docker-hub, env.cache-repository-name, steps.branch.outputs.name, 'dev') || null }}
           load: true
       - name: Create and run container from candidate image
         shell: bash
