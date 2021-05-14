@@ -13,6 +13,8 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *' # every Sunday at 02:00
 
 concurrency: ${{ github.ref }}
 
@@ -86,7 +88,7 @@ jobs:
     steps:
       - name: Evaluate conditions
         id: no-cache
-        run: echo ::set-output name=no-cache::${{ github.event_name == 'workflow_dispatch' }}
+        run: echo ::set-output name=no-cache::${{ github.event_name == 'workflow_dispatch' || github.event_name == 'schedule' }}
       - name: Guard against missing credentials
         run: |
           if [ "${{ steps.no-cache.outputs.no-cache == 'true' && needs.credentials.outputs.docker-hub != 'true' }}" = "true" ]; then
