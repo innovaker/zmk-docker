@@ -10,8 +10,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-concurrency: ${{ github.workflow }}
-    
+concurrency: ${{ github.ref }}
+
 jobs:
   namespaces:
     runs-on: ubuntu-latest
