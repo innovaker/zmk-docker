@@ -86,6 +86,7 @@ jobs:
       run:
         shell: /usr/bin/docker exec candidate /bin/bash {0}
     strategy:
+      fail-fast: false
       max-parallel: 1 # takes advantage of caching between jobs
       matrix: 
         architecture: ${{ fromJSON(needs.architectures.outputs.json) }}
