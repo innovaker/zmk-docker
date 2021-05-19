@@ -76,9 +76,27 @@ jobs:
           echo ::set-output name=versions::${VERSIONS}
           echo ::set-output name=major-minor::${MAJOR_MINOR}
           echo ::set-output name=latest::${LATEST}
+  no-cache:
+    needs:
+    - credentials
+    if: ${{ !startsWith(github.ref, 'refs/tags') }}
+    runs-on: ubuntu-latest
+    outputs:
+      no-cache: ${{ steps.no-cache.outputs.no-cache }}
+    steps:
+      - name: Evaluate conditions
+        id: no-cache
+        run: echo ::set-output name=no-cache::${{ github.event_name == 'workflow_dispatch' }}
+      - name: Guard against missing credentials
+        run: |
+          if [ "${{ steps.no-cache.outputs.no-cache == 'true' && needs.credentials.outputs.docker-hub != 'true' }}" = "true" ]; then
+            echo "Fresh (no-cache) builds must have Docker Hub credentials to avoid a mismatch between the different types of caches."
+            exit 1
+          fi
   dev-generic:
     needs:
       - credentials
+      - no-cache
     if: ${{ !startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
     steps:
@@ -134,7 +152,7 @@ jobs:
             ${{ runner.os }}/${{ env.cache-name }}/
       - name: Rebuild cache?
         id: should-rebuild
-        run: echo ::set-output name=value::${{ steps.cache.outputs.cache-hit != 'true' }}
+        run: echo ::set-output name=value::${{ steps.cache.outputs.cache-hit != 'true' || needs.no-cache.outputs.no-cache == 'true' }}
       - name: Set up QEMU
         if: ${{ steps.should-rebuild.outputs.value == 'true' }}
         uses: docker/setup-qemu-action@v1
@@ -148,6 +166,7 @@ jobs:
           target: dev-generic
           build-args: |
             ZEPHYR_VERSION=${{ env.zephyr-version }}
+          no-cache: ${{ needs.no-cache.outputs.no-cache == 'true' }}
           cache-from: |
             type=registry,ref=${{ steps.paths.outputs.target-branch }}
             type=registry,ref=${{ steps.paths.outputs.target-main }}
@@ -176,6 +195,7 @@ jobs:
       - credentials
       - architectures
       - tags
+      - no-cache
       - dev-generic
     if: ${{ !startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
@@ -296,12 +316,12 @@ jobs:
             ${{ steps.paths.outputs.build-branch }}
           cache-from: |
             type=local,src=${{ steps.paths.outputs.dev-generic }}
-            type=registry,ref=${{ steps.paths.outputs.build-branch }}
-            type=registry,ref=${{ steps.paths.outputs.dev-branch }}
-            type=registry,ref=${{ steps.paths.outputs.build-main }}
-            type=registry,ref=${{ steps.paths.outputs.dev-main }}
-            type=registry,ref=${{ steps.paths.outputs.build-main-upstream }}
-            type=registry,ref=${{ steps.paths.outputs.dev-main-upstream }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.build-branch) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-branch) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.build-main) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-main) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.build-main-upstream) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-main-upstream) }}
           cache-to: type=inline
           load: true
       - name: Build and load 'dev' candidate image
@@ -317,11 +337,11 @@ jobs:
             ${{ steps.paths.outputs.dev-branch }}
           cache-from: |
             type=registry,ref=${{ steps.paths.outputs.build-candidate }}
-            type=registry,ref=${{ steps.paths.outputs.dev-candidate }}
-            type=registry,ref=${{ steps.paths.outputs.dev-branch }}
-            type=registry,ref=${{ steps.paths.outputs.dev-main }}
-            type=registry,ref=${{ steps.paths.outputs.dev-branch-upstream }}
-            type=registry,ref=${{ steps.paths.outputs.dev-main-upstream }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-candidate) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-branch) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-main) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-branch-upstream) }}
+            ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-main-upstream) }}
           cache-to: type=inline
           load: true
       - name: Create and run container from candidate image
