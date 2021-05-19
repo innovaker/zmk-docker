@@ -158,13 +158,13 @@ jobs:
       run:
         shell: /usr/bin/docker exec candidate /bin/bash {0}
     strategy:
-      max-parallel: 1 # takes advantage of caching between jobs
       matrix: 
         architecture: ${{ fromJSON(needs.architectures.outputs.json) }}
         include:
           - architecture: arm
             board: nice_nano
             shield: qaz
+    concurrency: ${{ github.ref }}/${{ matrix.architecture }}
     steps:
       - name: Login to Docker Hub
         id: docker-hub-login
