@@ -51,28 +51,26 @@ jobs:
       versions: ${{ steps.definitions.outputs.versions }}
       major-minor: ${{ steps.definitions.outputs.major-minor }}
       latest: ${{ steps.definitions.outputs.latest }}
-      release-trigger: ${{ steps.definitions.outputs.release-trigger }}
     steps:
       - name: Definitions
         id: definitions
         env:
           SHA: ${{ github.sha }}
+          RUN_ID: ${{ github.run_id }}
           ZEPHYR_VERSION: ${{ env.zephyr-version }}
           ZEPHYR_SDK_VERSION: ${{ env.zephyr-sdk-version }}
         run: |
-          CANDIDATE=${SHA}
+          CANDIDATE=${GITHUB_REF#refs/heads/}-${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}-$(date +%Y%m%d%H%M%S)-${SHA}-${RUN_ID}
           VERSIONS=${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}
           MAJOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 1)
           MINOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 2)
           MAJOR_MINOR=${MAJOR}.${MINOR}
           LATEST=${MAJOR_MINOR}
-          RELEASE_TRIGGER=${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}
 
           echo ::set-output name=candidate::${CANDIDATE}
           echo ::set-output name=versions::${VERSIONS}
           echo ::set-output name=major-minor::${MAJOR_MINOR}
           echo ::set-output name=latest::${LATEST}
-          echo ::set-output name=release-trigger::${RELEASE_TRIGGER}
   candidates:
     needs:
       - credentials
@@ -239,12 +237,76 @@ jobs:
         shell: bash
         run: |
           docker image push docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ steps.repository.outputs.name }}:${{ needs.tags.outputs.candidate }}
+  release-trigger:
+    if: ${{ startsWith(github.ref, 'refs/tags') }}
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.match.outputs.tag }}
+      branch: ${{ steps.match.outputs.branch }}
+      zephyr-version: ${{ steps.match.outputs.zephyr-version }}
+      zephyr-version-major: ${{ steps.match.outputs.zephyr-version-major }}
+      zephyr-version-minor: ${{ steps.match.outputs.zephyr-version-minor }}
+      zephyr-version-patch: ${{ steps.match.outputs.zephyr-version-patch }}
+      zephyr-sdk-version: ${{ steps.match.outputs.zephyr-sdk-version }}
+      zephyr-sdk-version-major: ${{ steps.match.outputs.zephyr-sdk-version-major }}
+      zephyr-sdk-version-minor: ${{ steps.match.outputs.zephyr-sdk-version-minor }}
+      zephyr-sdk-version-patch: ${{ steps.match.outputs.zephyr-sdk-version-patch }}
+      date: ${{ steps.match.outputs.date }}
+      time: ${{ steps.match.outputs.time }}
+      year: ${{ steps.match.outputs.year }}
+      month: ${{ steps.match.outputs.month }}
+      day: ${{ steps.match.outputs.day }}
+      hour: ${{ steps.match.outputs.hour }}
+      minute: ${{ steps.match.outputs.minute }}
+      second: ${{ steps.match.outputs.second }}
+      sha: ${{ steps.match.outputs.sha }}
+      run-id: ${{ steps.match.outputs.run-id }}
+    steps:
+      - name: Is tag a release trigger?
+        id: match
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          PATTERN="^(.+?)-(([0-9]+)\.([0-9]+)\.([0-9]+))-(([0-9]+)\.([0-9]+)\.([0-9]+))-((([0-9]{4})(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01]))((?:([01]?\d|2[0-3])([0-5]?\d))?([0-5]?\d)))-([0-9a-fA-F]+)-([0-9]+)$"
+          if [[ "${TAG}" =~ $PATTERN ]]; then
+            echo ::set-output name=tag::${TAG}
+            echo ::set-output name=branch::${BASH_REMATCH[1]}
+            echo ::set-output name=zephyr-version::${BASH_REMATCH[2]}
+            echo ::set-output name=zephyr-version-major::${BASH_REMATCH[3]}
+            echo ::set-output name=zephyr-version-minor::${BASH_REMATCH[4]}
+            echo ::set-output name=zephyr-version-patch::${BASH_REMATCH[5]}
+            echo ::set-output name=zephyr-sdk-version::${BASH_REMATCH[6]}
+            echo ::set-output name=zephyr-sdk-version-major::${BASH_REMATCH[7]}
+            echo ::set-output name=zephyr-sdk-version-minor::${BASH_REMATCH[8]}
+            echo ::set-output name=zephyr-sdk-version-patch::${BASH_REMATCH[9]}
+            echo ::set-output name=date::${BASH_REMATCH[10]}
+            echo ::set-output name=time::${BASH_REMATCH[11]}
+            echo ::set-output name=year::${BASH_REMATCH[12]}
+            echo ::set-output name=month::${BASH_REMATCH[13]}
+            echo ::set-output name=day::${BASH_REMATCH[14]}
+            echo ::set-output name=hour::${BASH_REMATCH[16]}
+            echo ::set-output name=minute::${BASH_REMATCH[17]}
+            echo ::set-output name=second::${BASH_REMATCH[18]}
+            SHA=${BASH_REMATCH[19]}
+            echo ::set-output name=sha::${SHA}
+            echo ::set-output name=run-id::${BASH_REMATCH[20]}
+
+            if [ "${{ github.sha }}" != "${SHA}" ]; then
+              echo "Git hashes do not match!"
+              echo "Docker tag: ${SHA}"
+              echo "Git tag: ${{ github.sha }}"
+              exit 1
+            fi
+          else
+            echo "Tag not recognised, ignoring ..."
+          fi
+        continue-on-error: true
   releases:
     needs:
       - credentials
       - architectures
       - tags
-    if: ${{ github.ref == format('refs/tags/{0}', needs.tags.outputs.release-trigger) }}
+      - release-trigger
+    if: ${{ needs.release-trigger.outputs.sha != null }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -272,7 +334,7 @@ jobs:
           GHCRNS: ${{ github.repository_owner }}
           TARGET: ${{ matrix.target }}
           ARCHITECTURE: ${{ matrix.architecture }}
-          CANDIDATE: ${{ needs.tags.outputs.candidate }}
+          CANDIDATE: ${{ needs.release-trigger.outputs.tag }}
           VERSIONS: ${{ needs.tags.outputs.versions }}
           LATEST: ${{ needs.tags.outputs.latest }}
         run: |
