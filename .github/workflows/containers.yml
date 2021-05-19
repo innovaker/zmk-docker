@@ -72,12 +72,14 @@ jobs:
           MINOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 2)
           MAJOR_MINOR=${MAJOR}.${MINOR}
           LATEST=${MAJOR_MINOR}
+          NIGHTLY=${MAJOR_MINOR}-nightly
 
           echo ::set-output name=branch::${BRANCH}
           echo ::set-output name=candidate::${CANDIDATE}
           echo ::set-output name=versions::${VERSIONS}
           echo ::set-output name=major-minor::${MAJOR_MINOR}
           echo ::set-output name=latest::${LATEST}
+          echo ::set-output name=nightly::${NIGHTLY}
   no-cache:
     needs:
     - credentials
@@ -262,10 +264,12 @@ jobs:
           echo ::set-output name=dev-generic::/tmp/.buildx/dev-generic
           echo ::set-output name=build-candidate::docker.io/${NS}/${BUILD}:${CANDIDATE}
           echo ::set-output name=build-branch::docker.io/${NS}/${BUILD}:${BRANCH}
+          echo ::set-output name=build-branch-nightly::docker.io/${NS}/${BUILD}:${BRANCH}-nightly
           echo ::set-output name=build-main::docker.io/${NS}/${BUILD}:${MAIN}
           echo ::set-output name=build-main-upstream::docker.io/${UNS}/${BUILD}:${MAIN}
           echo ::set-output name=dev-candidate::docker.io/${NS}/${DEV}:${CANDIDATE}
           echo ::set-output name=dev-branch::docker.io/${NS}/${DEV}:${BRANCH}
+          echo ::set-output name=dev-branch-nightly::docker.io/${NS}/${DEV}:${BRANCH}-nightly
           echo ::set-output name=dev-main::docker.io/${NS}/${DEV}:${MAIN}
           echo ::set-output name=dev-main-upstream::docker.io/${UNS}/${DEV}:${MAIN}
       - name: Define build-args
@@ -316,6 +320,7 @@ jobs:
           tags: |
             ${{ steps.paths.outputs.build-candidate }}
             ${{ steps.paths.outputs.build-branch }}
+            ${{ github.event_name == 'schedule' && format('docker.io/{0}', steps.paths.outputs.build-branch-nightly) || null }}
           cache-from: |
             type=local,src=${{ steps.paths.outputs.dev-generic }}
             ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.build-branch) }}
@@ -337,6 +342,7 @@ jobs:
           tags: |
             ${{ steps.paths.outputs.dev-candidate }}
             ${{ steps.paths.outputs.dev-branch }}
+            ${{ github.event_name == 'schedule' && format('docker.io/{0}', steps.paths.outputs.dev-branch-nightly) || null }}
           cache-from: |
             type=registry,ref=${{ steps.paths.outputs.build-candidate }}
             ${{ needs.no-cache.outputs.no-cache == 'false' && format('type=registry,ref={0}', steps.paths.outputs.dev-candidate) }}
