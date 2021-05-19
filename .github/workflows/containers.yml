@@ -74,11 +74,99 @@ jobs:
           echo ::set-output name=versions::${VERSIONS}
           echo ::set-output name=major-minor::${MAJOR_MINOR}
           echo ::set-output name=latest::${LATEST}
+  dev-generic:
+    needs:
+      - credentials
+    if: ${{ !startsWith(github.ref, 'refs/tags') }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Docker Hub
+        id: docker-hub-login
+        if: ${{ needs.credentials.outputs.docker-hub == 'true' }}
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Login to GitHub Container Registry
+        id: ghcr-login
+        if: ${{ needs.credentials.outputs.ghcr == 'true' }}
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      - name: Define namespaces
+        id: namespaces
+        env:
+          DOCKER_HUB: ${{ secrets.DOCKER_HUB_NAMESPACE || github.repository_owner }}
+          GHCR: ${{ github.repository_owner }}
+        shell: bash
+        run: |
+          echo ::set-output name=docker-hub::${DOCKER_HUB}
+          echo ::set-output name=ghcr::${GHCR}
+      - name: Define paths
+        id: paths
+        env:
+          TARGET: dev-generic
+          NS: ${{ steps.namespaces.outputs.docker-hub }}
+          REPOSITORY: ${{ env.cache-repository-name }}
+        run: |
+          BRANCH=${GITHUB_REF#refs/heads/}
+          echo ::set-output name=local::/tmp/.buildx/${TARGET}
+          echo ::set-output name=local-new::/tmp/.buildx/${TARGET}-new
+          echo ::set-output name=target-branch::docker.io/${NS}/${REPOSITORY}:${BRANCH}-${TARGET}
+      - name: Set up cache
+        id: cache
+        uses: actions/cache@v2
+        env:
+          cache-name: dev-generic
+        with:
+          path: ${{ steps.paths.outputs.local }}
+          key: ${{ runner.os }}/${{ env.cache-name }}/${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}/${{ env.cache-name }}/
+      - name: Rebuild cache?
+        id: should-rebuild
+        run: echo ::set-output name=value::${{ steps.cache.outputs.cache-hit != 'true' }}
+      - name: Set up QEMU
+        if: ${{ steps.should-rebuild.outputs.value == 'true' }}
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        if: ${{ steps.should-rebuild.outputs.value == 'true' }}
+        uses: docker/setup-buildx-action@v1
+      - name: Build to local cache
+        if: ${{ steps.should-rebuild.outputs.value == 'true' }}
+        uses: docker/build-push-action@v2
+        with:
+          target: dev-generic
+          build-args: |
+            ZEPHYR_VERSION=${{ env.zephyr-version }}
+          cache-from: |
+            type=registry,ref=${{ steps.paths.outputs.target-branch }}
+          cache-to: type=local,dest=${{ steps.paths.outputs.local-new }},mode=max
+      # Workaround to stop the dev-generic cache ballooning ...
+      # https://github.com/docker/build-push-action/issues/252
+      # https://github.com/moby/buildkit/issues/1896
+      - name: Switch local cache
+        if: ${{ steps.should-rebuild.outputs.value == 'true' }}
+        run: |
+          rm -rf ${{ steps.paths.outputs.local }}
+          mv ${{ steps.paths.outputs.local-new }} ${{ steps.paths.outputs.local }}
+      - name: Push to registry cache
+        if: ${{ (steps.should-rebuild.outputs.value == 'true') && needs.credentials.outputs.docker-hub == 'true' }}
+        uses: docker/build-push-action@v2
+        with:
+          target: dev-generic
+          build-args: |
+            ZEPHYR_VERSION=${{ env.zephyr-version }}
+          cache-from: type=local,src=${{ steps.paths.outputs.local }}
+          cache-to: type=registry,ref=${{ steps.paths.outputs.target-branch }},mode=max
   candidates:
     needs:
       - credentials
       - architectures
       - tags
+      - dev-generic
     if: ${{ !startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
     env:
@@ -137,6 +225,7 @@ jobs:
           CANDIDATE: ${{ needs.tags.outputs.candidate }}
           BRANCH: ${{ needs.tags.outputs.branch }}
         run: |
+          echo ::set-output name=dev-generic::/tmp/.buildx/dev-generic
           echo ::set-output name=build-candidate::docker.io/${NS}/${BUILD}:${CANDIDATE}
           echo ::set-output name=build-branch::docker.io/${NS}/${BUILD}:${BRANCH}
           echo ::set-output name=dev-candidate::docker.io/${NS}/${DEV}:${CANDIDATE}
@@ -166,6 +255,14 @@ jobs:
           LIST="${LIST//$'\n'/'%0A'}"
           LIST="${LIST//$'\r'/'%0D'}"
           echo ::set-output name=list::${LIST}
+      - name: Set up dev-generic cache
+        id: dev-generic-cache
+        uses: actions/cache@v2
+        env:
+          cache-name: dev-generic
+        with:
+          path: ${{ steps.paths.outputs.dev-generic }}
+          key: ${{ runner.os }}/${{ env.cache-name }}/${{ github.run_id }}
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v1
       - name: Set up Docker Buildx
@@ -182,6 +279,7 @@ jobs:
             ${{ steps.paths.outputs.build-candidate }}
             ${{ steps.paths.outputs.build-branch }}
           cache-from: |
+            type=local,src=${{ steps.paths.outputs.dev-generic }}
             type=registry,ref=${{ steps.paths.outputs.build-branch }}
             type=registry,ref=${{ steps.paths.outputs.dev-branch }}
           cache-to: type=inline
