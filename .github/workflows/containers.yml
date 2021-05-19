@@ -3,6 +3,7 @@ name: Containers
 env:
   zephyr-version: 2.4.0
   zephyr-sdk-version: 0.11.4
+  main-branch: main
   cache-repository-name: zmk-docker-cache
   zmk-repository: zmkfirmware/zmk
   zmk-ref: main
@@ -110,11 +111,13 @@ jobs:
           TARGET: dev-generic
           NS: ${{ steps.namespaces.outputs.docker-hub }}
           REPOSITORY: ${{ env.cache-repository-name }}
+          MAIN: ${{ env.main-branch }}
         run: |
           BRANCH=${GITHUB_REF#refs/heads/}
           echo ::set-output name=local::/tmp/.buildx/${TARGET}
           echo ::set-output name=local-new::/tmp/.buildx/${TARGET}-new
           echo ::set-output name=target-branch::docker.io/${NS}/${REPOSITORY}:${BRANCH}-${TARGET}
+          echo ::set-output name=target-main::docker.io/${NS}/${REPOSITORY}:${MAIN}-${TARGET}
       - name: Set up cache
         id: cache
         uses: actions/cache@v2
@@ -143,6 +146,7 @@ jobs:
             ZEPHYR_VERSION=${{ env.zephyr-version }}
           cache-from: |
             type=registry,ref=${{ steps.paths.outputs.target-branch }}
+            type=registry,ref=${{ steps.paths.outputs.target-main }}
           cache-to: type=local,dest=${{ steps.paths.outputs.local-new }},mode=max
       # Workaround to stop the dev-generic cache ballooning ...
       # https://github.com/docker/build-push-action/issues/252
@@ -224,12 +228,15 @@ jobs:
           DEV: ${{ steps.repositories.outputs.dev }}
           CANDIDATE: ${{ needs.tags.outputs.candidate }}
           BRANCH: ${{ needs.tags.outputs.branch }}
+          MAIN: ${{ env.main-branch }}
         run: |
           echo ::set-output name=dev-generic::/tmp/.buildx/dev-generic
           echo ::set-output name=build-candidate::docker.io/${NS}/${BUILD}:${CANDIDATE}
           echo ::set-output name=build-branch::docker.io/${NS}/${BUILD}:${BRANCH}
+          echo ::set-output name=build-main::docker.io/${NS}/${BUILD}:${MAIN}
           echo ::set-output name=dev-candidate::docker.io/${NS}/${DEV}:${CANDIDATE}
           echo ::set-output name=dev-branch::docker.io/${NS}/${DEV}:${BRANCH}
+          echo ::set-output name=dev-main::docker.io/${NS}/${DEV}:${MAIN}
       - name: Define build-args
         id: build-args
         shell: bash
@@ -282,6 +289,8 @@ jobs:
             type=local,src=${{ steps.paths.outputs.dev-generic }}
             type=registry,ref=${{ steps.paths.outputs.build-branch }}
             type=registry,ref=${{ steps.paths.outputs.dev-branch }}
+            type=registry,ref=${{ steps.paths.outputs.build-main }}
+            type=registry,ref=${{ steps.paths.outputs.dev-main }}
           cache-to: type=inline
           load: true
       - name: Build and load 'dev' candidate image
@@ -299,6 +308,7 @@ jobs:
             type=registry,ref=${{ steps.paths.outputs.build-candidate }}
             type=registry,ref=${{ steps.paths.outputs.dev-candidate }}
             type=registry,ref=${{ steps.paths.outputs.dev-branch }}
+            type=registry,ref=${{ steps.paths.outputs.dev-main }}
           cache-to: type=inline
           load: true
       - name: Create and run container from candidate image
