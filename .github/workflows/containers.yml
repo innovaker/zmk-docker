@@ -47,6 +47,7 @@ jobs:
   tags:
     runs-on: ubuntu-latest
     outputs:
+      branch: ${{ steps.definitions.outputs.branch }}
       candidate: ${{ steps.definitions.outputs.candidate }}
       versions: ${{ steps.definitions.outputs.versions }}
       major-minor: ${{ steps.definitions.outputs.major-minor }}
@@ -60,13 +61,15 @@ jobs:
           ZEPHYR_VERSION: ${{ env.zephyr-version }}
           ZEPHYR_SDK_VERSION: ${{ env.zephyr-sdk-version }}
         run: |
-          CANDIDATE=${GITHUB_REF#refs/heads/}-${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}-$(date +%Y%m%d%H%M%S)-${SHA}-${RUN_ID}
+          BRANCH=${GITHUB_REF#refs/heads/}
+          CANDIDATE=${BRANCH}-${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}-$(date +%Y%m%d%H%M%S)-${SHA}-${RUN_ID}
           VERSIONS=${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}
           MAJOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 1)
           MINOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 2)
           MAJOR_MINOR=${MAJOR}.${MINOR}
           LATEST=${MAJOR_MINOR}
 
+          echo ::set-output name=branch::${BRANCH}
           echo ::set-output name=candidate::${CANDIDATE}
           echo ::set-output name=versions::${VERSIONS}
           echo ::set-output name=major-minor::${MAJOR_MINOR}
@@ -88,9 +91,9 @@ jobs:
       max-parallel: 1 # takes advantage of caching between jobs
       matrix: 
         architecture: ${{ fromJSON(needs.architectures.outputs.json) }}
-        target: # ordered from biggest to smallest to take advantage of the registry cache
-          - dev
+        target: # ordered from smallest to biggest to take advantage of the inline cache
           - build
+          - dev
         include:
           - architecture: arm
             board: nice_nano
@@ -149,8 +152,11 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           tags: |
             docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ steps.repositories.outputs.target }}:${{ needs.tags.outputs.candidate }}
-          cache-from: type=registry,ref=docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ env.cache-repository-name }}:${{ steps.branch.outputs.name }}
-          cache-to: ${{ (steps.docker-hub-login.outcome == 'success') && (matrix.target == 'dev') && format('type=registry,ref=docker.io/{0}/{1}:{2},mode=max', steps.namespaces.outputs.docker-hub, env.cache-repository-name, steps.branch.outputs.name) || null }}
+            docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ steps.repositories.outputs.target }}:${{ needs.tags.outputs.branch }}
+          cache-from: |
+            type=registry,ref=docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ steps.repositories.outputs.build }}:${{ needs.tags.outputs.branch }}
+            type=registry,ref=docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ steps.repositories.outputs.dev }}:${{ needs.tags.outputs.branch }}
+          cache-to: type=inline
           load: true
       - name: Create and run container from candidate image
         shell: bash
@@ -244,6 +250,7 @@ jobs:
         shell: bash
         run: |
           docker image push docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ steps.repositories.outputs.target }}:${{ needs.tags.outputs.candidate }}
+          docker image push docker.io/${{ steps.namespaces.outputs.docker-hub }}/${{ steps.repositories.outputs.target }}:${{ needs.tags.outputs.branch }}
   release-trigger:
     if: ${{ startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
