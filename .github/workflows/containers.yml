@@ -3,6 +3,7 @@ name: Containers
 env:
   zephyr-version: 2.4.0
   zephyr-sdk-version: 0.11.4
+  sha-abbrev-length: 12
   run-unit-tests: ${{ secrets.RUN_UNIT_TESTS != null }}
   docker-hub-credentials: ${{ secrets.DOCKER_HUB_USERNAME != null && secrets.DOCKER_HUB_TOKEN != null }}
   ghcr-credentials: ${{ secrets.GHCR_USERNAME != null && secrets.GHCR_TOKEN != null }}
@@ -47,12 +48,14 @@ jobs:
         id: definitions
         env:
           SHA: ${{ github.sha }}
+          SHA_ABBREV_LENGTH: ${{ env.sha-abbrev-length }}
           RUN_ID: ${{ github.run_id }}
           ZEPHYR_VERSION: ${{ env.zephyr-version }}
           ZEPHYR_SDK_VERSION: ${{ env.zephyr-sdk-version }}
         run: |
           BRANCH=${GITHUB_REF#refs/heads/}
           BRANCH=${BRANCH//[^A-Za-z0-9_.-]/_} # Substitutes invalid Docker tag characters
+          SHA=${SHA:0:${SHA_ABBREV_LENGTH}}
           CANDIDATE=${BRANCH}-$(date +%Y%m%d%H%M%S)-${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}-${SHA}-${RUN_ID}
           VERSIONS=${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}
           MAJOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 1)
@@ -418,7 +421,7 @@ jobs:
             echo ::set-output name=sha::${SHA}
             echo ::set-output name=run-id::${BASH_REMATCH[20]}
 
-            if [ "${{ github.sha }}" != "${SHA}" ]; then
+            if [[ "${{ github.sha }}" != ${SHA}* ]]; then
               echo "Git hashes do not match!"
               echo "Docker tag: ${SHA}"
               echo "Git tag: ${{ github.sha }}"
