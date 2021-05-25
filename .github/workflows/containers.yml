@@ -427,7 +427,6 @@ jobs:
           else
             echo "Tag not recognised, ignoring ..."
           fi
-        continue-on-error: true
   releases:
     needs:
       - architectures
