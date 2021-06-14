@@ -48,13 +48,18 @@ RUN \
   && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
   && apt-get -y update \
   && apt-get -y install --no-install-recommends \
+  autoconf \
+  automake \
+  build-essential \
+  bzip2 \
   clang-format \
-  g++-multilib \
+  g++ \
   gdb \
   gpg \
   gpg-agent \
   less \
   libsdl2-dev \
+  libtool \
   locales \
   nano \
   nodejs \
