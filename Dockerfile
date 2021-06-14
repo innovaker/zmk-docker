@@ -10,11 +10,9 @@ RUN \
   apt-get -y update \
   && apt-get -y install --no-install-recommends \
   ccache \
-  file \
   gcc \
   gcc-multilib \
   git \
-  gperf \
   make \
   ninja-build \
   python3 \
@@ -66,8 +64,6 @@ RUN \
   python3-dev \
   python3-pip \
   python3-setuptools \
-  python3-tk \
-  python3-wheel \
   socat \
   ssh \
   wget \
