@@ -76,6 +76,45 @@ RUN \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
+ARG PYTHON_VERSION=3.8.10
+RUN \
+  apt-get -y update \
+  && apt-get -y install --no-install-recommends \
+  build-essential \
+  libbz2-dev \
+  libffi-dev \
+  libgdbm-dev \
+  libncurses5-dev \
+  libnss3-dev \
+  libreadline-dev \
+  libsqlite3-dev \
+  libssl-dev \
+  zlib1g-dev \
+  && wget https://www.python.org/ftp/python/${PYTHON_VERSION}/Python-${PYTHON_VERSION}.tgz \
+  && tar xvf Python-${PYTHON_VERSION}.tgz \
+  && cd Python-${PYTHON_VERSION} \
+  && ./configure --enable-optimizations --enable-shared \
+  && make -j $(nproc) \
+  && make altinstall \
+  && cp libpython3.8.so* /usr/lib \
+  && chmod -v 755 /usr/lib/libpython3.8.so* \
+  && cd .. \
+  && rm -Rf Python-${PYTHON_VERSION} \
+  && rm Python-${PYTHON_VERSION}.tgz \
+  && apt-get remove -y --purge \
+  build-essential \
+  libbz2-dev \
+  libffi-dev \
+  libgdbm-dev \
+  libncurses5-dev \
+  libnss3-dev \
+  libreadline-dev \
+  libsqlite3-dev \
+  libssl-dev \
+  zlib1g-dev \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
 ENV DEBIAN_FRONTEND=
 
 #------------------------------------------------------------------------------
