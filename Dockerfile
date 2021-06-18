@@ -44,11 +44,11 @@ RUN \
   less \
   nano \
   nodejs \
+  openssh-clients \
   python3 \
   python3-pip \
   python3-tkinter \  
   socat \
-  ssh \
   tio \
   wget \
   xz \
