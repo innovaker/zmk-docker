@@ -38,13 +38,9 @@ ENV PAGER=less
 
 RUN \
   dnf install -y \
-  curl \
-  && curl -sL https://rpm.nodesource.com/setup_14.x | bash - \
-  && dnf install -y \
   clang-format \
   gdb \
   gpg \
-  gpg-agent \
   less \
   locales \
   nano \
