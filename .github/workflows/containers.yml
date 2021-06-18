@@ -417,6 +417,7 @@ jobs:
         run: less --version
       - name: Test PAGER
         run: pager --version && [[ $PAGER = "less" ]] && true || false
+        if: false
       - name: Test ssh
         run: ssh -V
       - name: Test gdb
