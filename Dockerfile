@@ -38,7 +38,7 @@ ENV PAGER=less
 
 RUN \
   dnf install -y \
-  clang-format \
+  clang-tools-extra \
   gdb \
   gpg \
   less \
