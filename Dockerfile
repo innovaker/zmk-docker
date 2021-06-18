@@ -42,7 +42,6 @@ RUN \
   gdb \
   gpg \
   less \
-  locales \
   nano \
   nodejs \
   python3 \
