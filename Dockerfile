@@ -6,14 +6,15 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 ARG ZEPHYR_VERSION
 ENV ZEPHYR_VERSION=${ZEPHYR_VERSION}
+ARG TARGETARCH
 RUN \
   apt-get -y update \
   && apt-get -y install --no-install-recommends \
+  $(${TARGETARCH} = "amd64" && "gcc-multilib" || "") \
   ccache \
   cmake \
   file \
   gcc \
-  gcc-multilib \
   git \
   gperf \
   make \
@@ -40,6 +41,7 @@ FROM common AS dev-generic
 ENV LC_ALL=C
 ENV PAGER=less
 
+ARG TARGETARCH
 RUN \
   apt-get -y update \
   && apt-get -y install --no-install-recommends \
@@ -47,8 +49,8 @@ RUN \
   && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
   && apt-get -y update \
   && apt-get -y install --no-install-recommends \
+  $(${TARGETARCH} = "amd64" && "g++-multilib" || "") \
   clang-format \
-  g++-multilib \
   gdb \
   gpg \
   gpg-agent \
