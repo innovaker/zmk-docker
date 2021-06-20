@@ -8,6 +8,8 @@ ARG ZEPHYR_VERSION
 ENV ZEPHYR_VERSION=${ZEPHYR_VERSION}
 RUN \
   apt-get -y update \
+  \
+  # Zephyr dependencies
   && apt-get -y install --no-install-recommends \
   ccache \
   cmake \
@@ -30,6 +32,7 @@ RUN \
   python3-pip \
   python3-setuptools \
   python3-wheel \
+  \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
@@ -42,35 +45,44 @@ ENV PAGER=less
 
 RUN \
   apt-get -y update \
+  \
+  # Zephyr dependencies
   && apt-get -y install --no-install-recommends \
-  curl \
-  && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
-  && apt-get -y update \
-  && apt-get -y install --no-install-recommends \
-  clang-format \
   g++-multilib \
-  gdb \
-  gpg \
-  gpg-agent \
-  less \
   libsdl2-dev \
-  locales \
-  nano \
-  nodejs \
   python3 \
   python3-dev \
   python3-pip \
   python3-setuptools \
   python3-tk \
   python3-wheel \
-  socat \
-  ssh \
-  tio \
   wget \
   xz-utils \
   && pip3 install \
   -r https://raw.githubusercontent.com/zephyrproject-rtos/zephyr/v${ZEPHYR_VERSION}/scripts/requirements-build-test.txt \
   -r https://raw.githubusercontent.com/zephyrproject-rtos/zephyr/v${ZEPHYR_VERSION}/scripts/requirements-run-test.txt \
+  \
+  # ZMK dependencies
+  && apt-get -y install --no-install-recommends \
+  curl \
+  && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
+  && apt-get -y update \
+  && apt-get -y install --no-install-recommends \
+  clang-format \
+  gpg-agent \
+  nodejs \
+  \
+  # Container tools
+  && apt-get -y install --no-install-recommends \
+  gdb \
+  gpg \
+  less \
+  locales \
+  nano \
+  socat \
+  ssh \
+  tio \
+  \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
