@@ -44,13 +44,13 @@ RUN \
   apt-get -y update \
   && apt-get -y install --no-install-recommends \
   curl \
+  gpg \
   && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
   && apt-get -y update \
   && apt-get -y install --no-install-recommends \
   clang-format \
   g++-multilib \
   gdb \
-  gpg \
   gpg-agent \
   less \
   libsdl2-dev \
