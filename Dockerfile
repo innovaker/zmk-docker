@@ -14,7 +14,6 @@ RUN \
   gcc \
   gcc-multilib \
   git \
-  make \
   ninja-build \
   python3 \
   python3-dev \
@@ -55,6 +54,7 @@ RUN \
   less \
   libsdl2-dev \
   locales \
+  make \
   nano \
   nodejs \
   python3 \
