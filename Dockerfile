@@ -68,9 +68,12 @@ RUN \
   tio \
   wget \
   xz-utils \
+  && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y \
+  && . $HOME/.cargo/env \
   && pip3 install \
   -r https://raw.githubusercontent.com/zephyrproject-rtos/zephyr/v${ZEPHYR_VERSION}/scripts/requirements-build-test.txt \
   -r https://raw.githubusercontent.com/zephyrproject-rtos/zephyr/v${ZEPHYR_VERSION}/scripts/requirements-run-test.txt \
+  && rustup self uninstall -y \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*
 
