@@ -11,7 +11,6 @@ RUN \
   && apt-get -y install --no-install-recommends \
   ccache \
   cmake \
-  file \
   gcc \
   gcc-multilib \
   git \
@@ -48,6 +47,7 @@ RUN \
   && apt-get -y update \
   && apt-get -y install --no-install-recommends \
   clang-format \
+  file \
   g++-multilib \
   gdb \
   gpg \
