@@ -51,7 +51,6 @@ RUN \
   g++-multilib \
   gdb \
   gpg \
-  gpg-agent \
   less \
   libsdl2-dev \
   locales \
