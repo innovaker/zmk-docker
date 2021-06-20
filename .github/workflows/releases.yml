@@ -1,0 +1,172 @@
+name: Releases
+
+env:
+  docker-hub-credentials: ${{ secrets.DOCKER_HUB_USERNAME != null && secrets.DOCKER_HUB_TOKEN != null }}
+  ghcr-credentials: ${{ secrets.GHCR_USERNAME != null && secrets.GHCR_TOKEN != null }}
+  docker-hub-namespace: ${{ secrets.DOCKER_HUB_NAMESPACE || github.repository_owner }}
+  ghcr-namespace: ${{ github.repository_owner }}
+
+on:
+  push:
+    tags: 
+      - '*.*-branch-*'
+
+concurrency: ${{ github.ref }}/${{ github.workflow }}
+
+jobs:
+  architectures:
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.import.outputs.json }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Import from architectures.yml
+        id: import
+        shell: python
+        run: |
+          import yaml, json
+          with open('architectures.yml', 'r') as file:
+            architectures = yaml.safe_load(file)
+            print('::set-output name=json::' + json.dumps(architectures))
+  trigger:
+    if: ${{ startsWith(github.ref, 'refs/tags') }}
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.match.outputs.tag }}
+      branch: ${{ steps.match.outputs.branch }}
+      datetime: ${{ steps.match.outputs.datetime }}
+      date: ${{ steps.match.outputs.date }}
+      year: ${{ steps.match.outputs.year }}
+      month: ${{ steps.match.outputs.month }}
+      day: ${{ steps.match.outputs.day }}
+      time: ${{ steps.match.outputs.time }}
+      hour: ${{ steps.match.outputs.hour }}
+      minute: ${{ steps.match.outputs.minute }}
+      second: ${{ steps.match.outputs.second }}
+      zephyr-version: ${{ steps.match.outputs.zephyr-version }}
+      zephyr-version-major: ${{ steps.match.outputs.zephyr-version-major }}
+      zephyr-version-minor: ${{ steps.match.outputs.zephyr-version-minor }}
+      zephyr-version-patch: ${{ steps.match.outputs.zephyr-version-patch }}
+      zephyr-sdk-version: ${{ steps.match.outputs.zephyr-sdk-version }}
+      zephyr-sdk-version-major: ${{ steps.match.outputs.zephyr-sdk-version-major }}
+      zephyr-sdk-version-minor: ${{ steps.match.outputs.zephyr-sdk-version-minor }}
+      zephyr-sdk-version-patch: ${{ steps.match.outputs.zephyr-sdk-version-patch }}
+      sha: ${{ steps.match.outputs.sha }}
+      run-id: ${{ steps.match.outputs.run-id }}
+    steps:
+      - name: Is tag a release trigger?
+        id: match
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          PATTERN="^(.+?)-((([0-9]{4})(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01]))(([01]?[0-9]|2[0-3])([0-5][0-9])([0-5][0-9])))-(([0-9]+)\.([0-9]+)\.([0-9]+))-(([0-9]+)\.([0-9]+)\.([0-9]+))-([0-9a-fA-F]+)-([0-9]+)$"
+          if [[ "${TAG}" =~ $PATTERN ]]; then
+            echo ::set-output name=tag::${TAG}
+            echo ::set-output name=branch::${BASH_REMATCH[1]}
+            echo ::set-output name=datetime::${BASH_REMATCH[2]}
+            echo ::set-output name=date::${BASH_REMATCH[3]}
+            echo ::set-output name=year::${BASH_REMATCH[4]}
+            echo ::set-output name=month::${BASH_REMATCH[5]}
+            echo ::set-output name=day::${BASH_REMATCH[6]}
+            echo ::set-output name=time::${BASH_REMATCH[7]}
+            echo ::set-output name=hour::${BASH_REMATCH[8]}
+            echo ::set-output name=minute::${BASH_REMATCH[9]}
+            echo ::set-output name=second::${BASH_REMATCH[10]}
+            echo ::set-output name=zephyr-version::${BASH_REMATCH[11]}
+            echo ::set-output name=zephyr-version-major::${BASH_REMATCH[12]}
+            echo ::set-output name=zephyr-version-minor::${BASH_REMATCH[13]}
+            echo ::set-output name=zephyr-version-patch::${BASH_REMATCH[14]}
+            echo ::set-output name=zephyr-sdk-version::${BASH_REMATCH[15]}
+            echo ::set-output name=zephyr-sdk-version-major::${BASH_REMATCH[16]}
+            echo ::set-output name=zephyr-sdk-version-minor::${BASH_REMATCH[17]}
+            echo ::set-output name=zephyr-sdk-version-patch::${BASH_REMATCH[18]}
+            SHA=${BASH_REMATCH[19]}
+            echo ::set-output name=sha::${SHA}
+            echo ::set-output name=run-id::${BASH_REMATCH[20]}
+
+            if [[ "${{ github.sha }}" != ${SHA}* ]]; then
+              echo "Hashes do not match!"
+              echo "${{ github.sha }}"
+              echo "${SHA}"
+              exit 1
+            fi
+          else
+            echo "Tag not recognised, ignoring ..."
+          fi
+  images:
+    needs:
+      - architectures
+      - trigger
+    if: ${{ needs.trigger.outputs.sha != null }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        architecture: ${{ fromJSON(needs.architectures.outputs.json) }}
+        target:
+          - build
+          - dev
+    steps:
+      - name: Login to GitHub Container Registry
+        id: ghcr-login
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ secrets.GHCR_USERNAME }}
+          password: ${{ secrets.GHCR_TOKEN }}
+      - name: Login to Docker Hub
+        id: docker-hub-login
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_TOKEN }}
+      - name: Tags
+        id: tags
+        env:
+          ZEPHYR_VERSION: ${{ needs.trigger.outputs.zephyr-version }}
+          ZEPHYR_SDK_VERSION: ${{ needs.trigger.outputs.zephyr-sdk-version }}
+        run: |
+          VERSIONS=${ZEPHYR_VERSION}-${ZEPHYR_SDK_VERSION}
+          MAJOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 1)
+          MINOR=$(echo ${ZEPHYR_VERSION} | cut -d'.' -f 2)
+          MAJOR_MINOR=${MAJOR}.${MINOR}
+          MAJOR_MINOR_BRANCH=${MAJOR_MINOR}-branch
+
+          echo ::set-output name=versions::${VERSIONS}
+          echo ::set-output name=major-minor::${MAJOR_MINOR}
+      - name: Release (pull candidate, tag, push)
+        env:
+          DHNS: ${{ env.docker-hub-namespace }}
+          GHCRNS: ${{ env.ghcr-namespace }}
+          TARGET: ${{ matrix.target }}
+          ARCHITECTURE: ${{ matrix.architecture }}
+          CANDIDATE: ${{ needs.trigger.outputs.tag }}
+          VERSIONS: ${{ steps.tags.outputs.versions }}
+          MAJOR_MINOR: ${{ steps.tags.outputs.major-minor }}
+        run: |
+          REPOSITORY=zmk-${TARGET}-${ARCHITECTURE}
+          
+          docker pull docker.io/${DHNS}/${REPOSITORY}:${CANDIDATE}
+          docker tag docker.io/${DHNS}/${REPOSITORY}:${CANDIDATE} docker.io/${DHNS}/${REPOSITORY}:${VERSIONS}
+          docker tag docker.io/${DHNS}/${REPOSITORY}:${CANDIDATE} docker.io/${DHNS}/${REPOSITORY}:${MAJOR_MINOR}
+          docker tag docker.io/${DHNS}/${REPOSITORY}:${CANDIDATE} ghcr.io/${GHCRNS}/${REPOSITORY}:${CANDIDATE}
+          docker tag docker.io/${DHNS}/${REPOSITORY}:${CANDIDATE} ghcr.io/${GHCRNS}/${REPOSITORY}:${VERSIONS}
+          docker tag docker.io/${DHNS}/${REPOSITORY}:${CANDIDATE} ghcr.io/${GHCRNS}/${REPOSITORY}:${MAJOR_MINOR}
+          docker push docker.io/${DHNS}/${REPOSITORY}:${CANDIDATE}
+          docker push docker.io/${DHNS}/${REPOSITORY}:${VERSIONS}
+          docker push docker.io/${DHNS}/${REPOSITORY}:${MAJOR_MINOR}
+          docker push ghcr.io/${GHCRNS}/${REPOSITORY}:${CANDIDATE}
+          docker push ghcr.io/${GHCRNS}/${REPOSITORY}:${VERSIONS}
+          docker push ghcr.io/${GHCRNS}/${REPOSITORY}:${MAJOR_MINOR}
+  git:
+    needs:
+    - images
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Tag
+        env:
+          TAG: ${{ steps.tags.outputs.major-minor }}
+        run: |
+          git tag ${TAG}
+          git push -f origin ${TAG}
