@@ -45,7 +45,6 @@ RUN \
   && apt-get -y install --no-install-recommends \
   curl \
   && curl -sL https://deb.nodesource.com/setup_14.x | bash - \
-  && apt-get -y update \
   && apt-get -y install --no-install-recommends \
   clang-format \
   g++-multilib \
