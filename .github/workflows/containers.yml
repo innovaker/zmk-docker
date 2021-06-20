@@ -389,9 +389,10 @@ jobs:
         if: ${{ steps.board-shield.outcome == 'success' }}
         run: west build -t rom_report
       - name: Test west test (single)
+        if: ${{ matrix.architecture == 'amd64' }}
         run: west test tests/none/normal
       - name: Test west test (full)
-        if: ${{ env.run-unit-tests == 'true' }}
+        if: ${{ matrix.architecture == 'amd64' && env.run-unit-tests == 'true' }}
         run: west test
       - name: Test clean (west build)
         if: ${{ steps.board-shield.outcome == 'success' }}
