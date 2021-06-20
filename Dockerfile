@@ -14,7 +14,6 @@ RUN \
   gcc \
   gcc-multilib \
   git \
-  gperf \
   make \
   ninja-build \
   python3 \
@@ -50,6 +49,7 @@ RUN \
   file \
   g++-multilib \
   gdb \
+  gperf \
   gpg \
   gpg-agent \
   less \
