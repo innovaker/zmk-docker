@@ -264,8 +264,8 @@ jobs:
         run: |
           LIST="
             ZEPHYR_VERSION=${{ env.zephyr-version }}
-            ARCHITECTURE=${{ matrix.architecture }}
             ZEPHYR_SDK_VERSION=${{ env.zephyr-sdk-version }}
+            ARCHITECTURE=${{ matrix.architecture }}
             MACHINE=${{ matrix.machine }}
           "
           # Escapes %, \n and \r
