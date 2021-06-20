@@ -57,6 +57,7 @@ RUN \
   locales \
   nano \
   nodejs \
+  openssh-client \
   python3 \
   python3-dev \
   python3-pip \
@@ -64,7 +65,6 @@ RUN \
   python3-tk \
   python3-wheel \
   socat \
-  ssh \
   tio \
   wget \
   xz-utils \
