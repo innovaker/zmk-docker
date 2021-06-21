@@ -146,6 +146,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           target: dev-generic
+          platforms: amd64, arm64
           build-args: |
             ZEPHYR_VERSION=${{ env.zephyr-version }}
           no-cache: ${{ env.no-cache == 'true' }}
@@ -162,6 +163,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           target: dev-generic
+          platforms: amd64, arm64
           build-args: |
             ZEPHYR_VERSION=${{ env.zephyr-version }}
           tags: |
@@ -193,7 +195,14 @@ jobs:
       fail-fast: false
       matrix: 
         architecture: ${{ fromJSON(needs.architectures.outputs.json) }}
+        platform:
+        - amd64
+        - arm64
         include:
+          - platform: amd64
+            machine: x86_64
+          - platform: arm64
+            machine: aarch64
           - architecture: arm
             board: nice_nano
             shield: qaz
@@ -257,6 +266,7 @@ jobs:
             ZEPHYR_VERSION=${{ env.zephyr-version }}
             ARCHITECTURE=${{ matrix.architecture }}
             ZEPHYR_SDK_VERSION=${{ env.zephyr-sdk-version }}
+            MACHINE=${{ matrix.machine }}
           "
           # Escapes %, \n and \r
           # See: https://github.community/t/set-output-truncates-multiline-strings/16852
@@ -294,6 +304,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           target: build
+          platforms: ${{ matrix.platform }}
           build-args: |
             ${{ steps.build-args.outputs.list }}
           labels: |
@@ -315,6 +326,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           target: dev
+          platforms: ${{ matrix.platform }}
           build-args: |
             ${{ steps.build-args.outputs.list }}
           labels: |
