@@ -401,16 +401,20 @@ jobs:
       - name: Test docs prettier check
         run: cd docs && npm run prettier:check
       - name: Test docs start (webpack-dev-server)
-        run: cd docs && timeout -s SIGINT 20 npm run start &
+        run: cd docs && timeout -s SIGINT 20 npm run start > /tmp/webpack-dev-server.log 2>&1 &
       - run: sleep 15
+      - name: Print docs start (webpack-dev-server) log
+        run: cat /tmp/webpack-dev-server.log
       - name: Test docs wget (webpack-dev-server)
         run: wget http://localhost:3000
       - run: sleep 10
       - name: Test docs build (webpack)
         run: cd docs && npm run build
       - name: Test docs serve (webpack)
-        run: cd docs && timeout -s SIGINT 10 npm run serve &
+        run: cd docs && timeout -s SIGINT 10 npm run serve > /tmp/webpack.log 2>&1 &
       - run: sleep 5
+      - name: Print docs serve (webpack) log
+        run: cat /tmp/webpack.log
       - name: Test docs wget (webpack)
         run: wget http://localhost:3000
       - name: Test less
