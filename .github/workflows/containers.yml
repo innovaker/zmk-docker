@@ -439,6 +439,14 @@ jobs:
           docker image push ${{ steps.paths.outputs.build-branch }}
           docker image push ${{ steps.paths.outputs.dev-candidate }}
           docker image push ${{ steps.paths.outputs.dev-branch }}
+      - name: Push failed candidate images to the registry
+        if: ${{ steps.docker-hub-login.outcome == 'success' && failure() }}
+        shell: bash
+        run: |
+          docker tag ${{ steps.paths.outputs.build-candidate }} ${{ steps.paths.outputs.build-candidate }}-FAILED
+          docker tag ${{ steps.paths.outputs.dev-candidate }} ${{ steps.paths.outputs.dev-candidate }}-FAILED
+          docker image push ${{ steps.paths.outputs.build-candidate }}-FAILED
+          docker image push ${{ steps.paths.outputs.dev-candidate }}-FAILED
   release-trigger:
     if: ${{ startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
