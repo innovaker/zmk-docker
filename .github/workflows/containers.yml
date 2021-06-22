@@ -115,12 +115,14 @@ jobs:
           NS: ${{ env.docker-hub-namespace }}
           NSU: ${{ env.docker-hub-namespace-upstream }}
           REPOSITORY: zmk-dev-generic
+          CANDIDATE: ${{ needs.tags.outputs.candidate }}
           BRANCH: ${{ needs.tags.outputs.branch }}
           BASE: ${{ needs.tags.outputs.base }}
           MAJOR_MINOR_BRANCH: ${{ needs.tags.outputs.major-minor-branch }}
         run: |
           echo ::set-output name=local::/tmp/.buildx/dev-generic
           echo ::set-output name=local-new::/tmp/.buildx/dev-generic-new
+          echo ::set-output name=candidate::docker.io/${NS}/${REPOSITORY}:${CANDIDATE}
           echo ::set-output name=branch::docker.io/${NS}/${REPOSITORY}:${BRANCH}
           if [ ! -z "$BASE" ]; then
             echo ::set-output name=base::docker.io/${NS}/${REPOSITORY}:${BASE}
@@ -149,10 +151,12 @@ jobs:
           build-args: |
             ZEPHYR_VERSION=${{ env.zephyr-version }}
           tags: |
+            ${{ steps.paths.outputs.candidate }}
             ${{ steps.paths.outputs.branch }}
           no-cache: ${{ env.no-cache == 'true' }}
           cache-from: |
             ${{ (env.ignore-actions-cache == 'false') && format('type=local,src={0}', steps.paths.outputs.local) || '' }}
+            type=registry,ref=${{ steps.paths.outputs.candidate }}
             type=registry,ref=${{ steps.paths.outputs.branch }}
             ${{ (steps.paths.outputs.base != '') && format('type=registry,ref={0}', steps.paths.outputs.base) || '' }}
             type=registry,ref=${{ steps.paths.outputs.major-minor-branch }}
@@ -163,6 +167,7 @@ jobs:
       - name: Push to registry cache
         if: ${{ env.docker-hub-credentials == 'true' }}
         run: |
+          docker image push ${{ steps.paths.outputs.candidate }}
           docker image push ${{ steps.paths.outputs.branch }}
       # Workaround to stop the dev-generic cache ballooning ...
       # https://github.com/docker/build-push-action/issues/252
