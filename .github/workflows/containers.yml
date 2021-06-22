@@ -408,13 +408,15 @@ jobs:
           timeout --signal=SIGINT 300 tail --follow --lines=1 /tmp/docs-start.log | grep --quiet --max-count=1 "Compiled successfully" || true
           wget --tries=1 http://localhost:3000
           pkill node
-      - name: Test docs build (webpack)
-        run: cd docs && npm run build
-      - name: Test docs serve (webpack)
-        run: cd docs && timeout -s SIGINT 10 npm run serve &
-      - run: sleep 5
-      - name: Test docs wget (webpack)
-        run: wget http://localhost:3000
+      - name: Test docs build & serve (webpack)
+        run: |
+          cd docs
+          npm run build
+          npm run serve | tee /tmp/docs-serve.log &
+          sleep 1
+          timeout --signal=SIGINT 10 tail --follow --lines=1 /tmp/docs-serve.log | grep --quiet --max-count=1 "Serving" || true
+          wget --tries=1 http://localhost:3000
+          pkill node
       - name: Test less
         run: less --version
       - name: Test PAGER
