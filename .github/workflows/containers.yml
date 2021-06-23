@@ -188,7 +188,7 @@ jobs:
       docker-args: --rm --workdir /github/workspace -v /var/run/docker.sock:/var/run/docker.sock -v /home/runner/work/_temp:/home/runner/work/_temp -v /home/runner/work/_temp/_github_home:/github/home -v /home/runner/work/_temp/_github_workflow:/github/workflow -v /home/runner/work/_temp/_runner_file_commands:/github/file_commands -v ${{ github.workspace }}:/github/workspace
     defaults:
       run:
-        shell: /usr/bin/docker exec candidate /bin/bash {0}
+        shell: docker exec candidate /bin/bash {0}
     strategy:
       fail-fast: false
       matrix: 
