@@ -185,7 +185,7 @@ jobs:
     if: ${{ !startsWith(github.ref, 'refs/tags') }}
     runs-on: ubuntu-latest
     env:
-      docker-args: --rm --workdir /github/workspace -v /var/run/docker.sock:/var/run/docker.sock -v /home/runner/work/_temp:/home/runner/work/_temp -v /home/runner/work/_temp/_github_home:/github/home -v /home/runner/work/_temp/_github_workflow:/github/workflow -v /home/runner/work/_temp/_runner_file_commands:/github/file_commands -v ${{ github.workspace }}:/github/workspace
+      docker-args: -d -it --rm --workdir /github/workspace -v /var/run/docker.sock:/var/run/docker.sock -v /home/runner/work/_temp:/home/runner/work/_temp -v /home/runner/work/_temp/_github_home:/github/home -v /home/runner/work/_temp/_github_workflow:/github/workflow -v /home/runner/work/_temp/_runner_file_commands:/github/file_commands -v ${{ github.workspace }}:/github/workspace
     defaults:
       run:
         shell: docker exec candidate /bin/bash {0}
@@ -353,7 +353,7 @@ jobs:
             ${{ runner.os }}/${{ env.cache-name }}/
       - name: Create and run container from 'build' candidate image
         shell: bash
-        run: docker run -d -it --name candidate ${{ env.docker-args }} ${{ steps.paths.outputs.build-candidate }}
+        run: docker run --name candidate ${{ env.docker-args }} ${{ steps.paths.outputs.build-candidate }}
       - name: Test cmake
         run: cmake --version
       - name: Test python
@@ -389,7 +389,7 @@ jobs:
         run: docker stop candidate
       - name: Create and run container from 'dev' candidate image
         shell: bash
-        run: docker run -d -it --name candidate ${{ env.docker-args }} ${{ steps.paths.outputs.dev-candidate }}
+        run: docker run --name candidate ${{ env.docker-args }} ${{ steps.paths.outputs.dev-candidate }}
       - name: Test clang-format
         run: clang-format --version
       - name: Test node
