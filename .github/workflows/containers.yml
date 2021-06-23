@@ -243,12 +243,6 @@ jobs:
           echo ::set-output name=build-major-minor-branch-upstream::docker.io/${NSU}/${BUILD}:${MAJOR_MINOR_BRANCH}
           echo ::set-output name=dev-candidate::docker.io/${NS}/${DEV}:${CANDIDATE}
           echo ::set-output name=dev-branch::docker.io/${NS}/${DEV}:${BRANCH}
-          if [ ! -z "$BASE" ]; then
-            echo ::set-output name=dev-base::docker.io/${NS}/${DEV}:${BASE}
-          fi
-          echo ::set-output name=dev-major-minor-branch::docker.io/${NS}/${DEV}:${MAJOR_MINOR_BRANCH}
-          echo ::set-output name=dev-branch-upstream::docker.io/${NSU}/${DEV}:${BRANCH}
-          echo ::set-output name=dev-major-minor-branch-upstream::docker.io/${NSU}/${DEV}:${MAJOR_MINOR_BRANCH}
       - name: Define build-args
         id: build-args
         shell: bash
@@ -325,12 +319,6 @@ jobs:
           cache-from: |
             type=registry,ref=${{ steps.paths.outputs.build-candidate }}
             type=local,src=${{ steps.paths.outputs.dev-generic }}
-            ${{ (env.no-cache == 'false') && format('type=registry,ref={0}', steps.paths.outputs.dev-candidate) }}
-            ${{ (env.no-cache == 'false') && format('type=registry,ref={0}', steps.paths.outputs.dev-branch) }}
-            ${{ (env.no-cache == 'false') && (steps.paths.outputs.dev-base != '') && format('type=registry,ref={0}', steps.paths.outputs.dev-base) || '' }}
-            ${{ (env.no-cache == 'false') && format('type=registry,ref={0}', steps.paths.outputs.dev-major-minor-branch) }}
-            ${{ (env.no-cache == 'false') && format('type=registry,ref={0}', steps.paths.outputs.dev-branch-upstream) }}
-            ${{ (env.no-cache == 'false') && format('type=registry,ref={0}', steps.paths.outputs.dev-major-minor-branch-upstream) }}
           cache-to: type=inline
           load: true
       - name: Checkout ZMK
